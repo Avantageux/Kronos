@@ -76,3 +76,5 @@ tmp/
 
 # API key (persistent, generated)
 webui/.api_key
+
+graphify-out/
