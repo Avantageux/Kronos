@@ -1,17 +1,15 @@
 # GPU Training Guide for Kronos Classification
 
-This guide explains how to efficiently use your 4 NVIDIA V100 GPUs (1×16GB + 3×32GB) for maximum training and inference speed.
+This guide explains how to efficiently use GPUs for maximum training and inference speed.
 
 ## Hardware Overview
 
 ```
-GPU 0: V100 16GB (cuda:0)
-GPU 1: V100 32GB (cuda:1)
-GPU 2: V100 32GB (cuda:2)
-GPU 3: V100 32GB (cuda:3)
+GPU 0: RTX3090 24GB (cuda:0)
+GPU 1: RTX3090 24GB (cuda:1)
 ```
 
-Total: 112GB GPU Memory
+Total: 48GB GPU Memory
 
 ## Key Optimizations Implemented
 
@@ -24,7 +22,7 @@ Total: 112GB GPU Memory
 - **Pin Memory**: Enabled for faster CPU→GPU transfer
 - **Prefetching**: 2 batches preloaded per worker (configurable)
 - **Persistent Workers**: Reduces worker startup overhead
-- **Multiple Workers**: 4 parallel data loaders (configurable)
+- **Multiple Workers**: 2 parallel data loaders (configurable)
 
 ### 3. Training Optimizations
 - **FP16 Mixed Precision**: ~2x speedup, ~50% memory reduction
@@ -62,11 +60,11 @@ python classification/kronos_pretrain.py \
     --batch_size 64
 ```
 
-### Multi-GPU Training (All 4 GPUs)
+### Multi-GPU Training (All 2 GPUs)
 
 ```bash
-# Use all 4 GPUs with torchrun
-torchrun --standalone --nproc_per_node=4 classification/kronos_pretrain.py \
+# Use all 2 GPUs with torchrun
+torchrun --standalone --nproc_per_node=2 classification/kronos_pretrain.py \
     --data_dir /path/to/data \
     --num_classes 2 \
     --fp16 \
@@ -75,8 +73,8 @@ torchrun --standalone --nproc_per_node=4 classification/kronos_pretrain.py \
 
 With torchrun:
 - Each GPU gets `batch_size / num_gpus` = 8 samples per GPU
-- Effective batch size = 32 × 4 = 128
-- Training speed ~3.5-4x faster than single GPU
+- Effective batch size = 32 × 2 = 64
+- Training speed ~2x faster than single GPU
 
 ### Multi-GPU Training (Specific GPUs Only)
 
@@ -101,8 +99,8 @@ python classification/kronos_finetune.py \
     --fp16 \
     --batch_size 32
 
-# Multi-GPU (all 4)
-torchrun --standalone --nproc_per_node=4 classification/kronos_finetune.py \
+# Multi-GPU (all 2)
+torchrun --standalone --nproc_per_node=2 classification/kronos_finetune.py \
     --data_dir /path/to/data \
     --pretrained_checkpoint ./pretrain_checkpoints/best_model \
     --num_classes 2 \
@@ -149,34 +147,22 @@ pipeline = KronosClassificationPipeline(
 
 ## Recommended Batch Sizes
 
-### Single GPU (V100 16GB)
+### Single GPU (RTX3090 24GB)
 ```
 Without FP16:
-- batch_size: 8-12 (conservative)
-- batch_size: 16 (if model fits)
+- batch_size: 12-18 (conservative)
+- batch_size: 24 (if model fits)
 
 With FP16 (recommended):
-- batch_size: 24-32 (standard)
-- batch_size: 48 (aggressive, may OOM)
+- batch_size: 32-48 (standard)
+- batch_size: 64 (aggressive, may OOM)
 ```
 
-### Single GPU (V100 32GB)
-```
-Without FP16:
-- batch_size: 16-24 (standard)
-- batch_size: 32 (aggressive)
-
-With FP16 (recommended):
-- batch_size: 48-64 (standard)
-- batch_size: 96-128 (aggressive)
-```
-
-### Multi-GPU (4× V100, 1×16GB + 3×32GB)
+### Multi-GPU (2× RTX3090)
 ```
 With FP16, per-GPU batch sizes:
 - batch_size: 16 per GPU (total 64) - safe for all
-- batch_size: 24 per GPU (total 96) - recommended
-- batch_size: 32 per GPU (total 128) - max for 16GB GPU
+- batch_size: 24 per GPU (total 48) - recommended
 ```
 
 **Note**: When using multi-GPU, ensure batch_size fits the **smallest GPU** (16GB).
@@ -223,24 +209,6 @@ With FP16, per-GPU batch sizes:
 - Shorter sequences = faster training
 - Trade-off: less historical context
 
-## Speed Benchmarks
-
-### Training Speed (samples/second)
-
-| Configuration | Single GPU (16GB) | Single GPU (32GB) | 4× GPU (All) |
-|---------------|-------------------|-------------------|--------------|
-| Without FP16 | ~30 samples/s | ~35 samples/s | ~110 samples/s |
-| With FP16 | ~60 samples/s | ~70 samples/s | ~220 samples/s |
-| Speedup | 2x | 2x | 3.7x |
-
-### Inference Speed (samples/second)
-
-| Configuration | Single GPU | Batch Size | Throughput |
-|---------------|-----------|------------|------------|
-| Without FP16 | ~80 samples/s | 32 | ~2560 samples/s |
-| With FP16 | ~150 samples/s | 64 | ~9600 samples/s |
-| Speedup | 1.9x | 2x | 3.75x |
-
 ## Memory Optimization
 
 ### If You Run Out of Memory (OOM)
@@ -276,54 +244,24 @@ import torch
 print(torch.cuda.memory_summary())
 ```
 
-## Advanced: Mixed GPU Sizes
-
-Since you have different GPU sizes (16GB vs 32GB), here are strategies:
-
-### Strategy 1: Conservative (Recommended for Stability)
-```bash
-# Use batch size that fits 16GB GPU
-torchrun --standalone --nproc_per_node=4 classification/kronos_pretrain.py \
-    --batch_size 20 \
-    --fp16  # Fits comfortably on 16GB GPU
-```
-
-### Strategy 2: Aggressive (Maximize 32GB GPUs)
-```bash
-# Use only 32GB GPUs for larger batch size
-CUDA_VISIBLE_DEVICES=1,2,3 torchrun --standalone --nproc_per_node=3 \
-    classification/kronos_pretrain.py \
-    --batch_size 48 \
-    --fp16  # Maximizes 32GB GPUs
-```
-
-### Strategy 3: Dynamic (Adaptive Batch Size)
-```bash
-# Use all GPUs with conservative batch, then scale up
-torchrun --standalone --nproc_per_node=4 classification/kronos_pretrain.py \
-    --batch_size 16 \
-    --gradient_accumulation_steps 2 \
-    --fp16
-```
-
 ## Production Training Pipeline
 
-### Stage 1: Pre-training (All 4 GPUs)
+### Stage 1: Pre-training (All 2 GPUs)
 ```bash
-torchrun --standalone --nproc_per_node=4 classification/kronos_pretrain.py \
+torchrun --standalone --nproc_per_node=2 classification/kronos_pretrain.py \
     --data_dir /path/to/labeled_data \
     --kronos_model NeoQuasar/Kronos-base \
     --tokenizer_path NeoQuasar/Kronos-Tokenizer-base \
     --num_classes 2 \
     --output_dir ./pretrain_checkpoints \
-    --batch_size 24 \
+    --batch_size 16 \
     --learning_rate 2e-5 \
     --num_epochs 3 \
     --fp16 \
     --save_format safetensors
 ```
 
-### Stage 2: Fine-tuning (Single 32GB GPU)
+### Stage 2: Fine-tuning (Single 24GB GPU)
 ```bash
 python classification/kronos_finetune.py \
     --data_dir /path/to/new_data \
@@ -331,16 +269,16 @@ python classification/kronos_finetune.py \
     --num_classes 2 \
     --output_dir ./finetuned_checkpoints \
     --device cuda:1 \
-    --batch_size 64 \
+    --batch_size 32 \
     --learning_rate 5e-5 \
     --num_epochs 5 \
     --freeze_backbone_epochs 1 \
     --fp16
 ```
 
-### Stage 3: RL Fine-tuning (All 4 GPUs)
+### Stage 3: RL Fine-tuning (All 2 GPUs)
 ```bash
-torchrun --standalone --nproc_per_node=4 classification/kronos_rl_finetune.py \
+torchrun --standalone --nproc_per_node=2 classification/kronos_rl_finetune.py \
     --model_path ./finetuned_checkpoints/best_model \
     --data_dir /path/to/data \
     --output_dir ./rl_checkpoints \
@@ -403,8 +341,8 @@ print(f"Training speed: {samples_per_second:.2f} samples/second")
 
 1. **Always use FP16** (`--fp16`) for 2x speedup
 2. **Auto-detect GPU** for single GPU training (default)
-3. **Use all 4 GPUs** for pre-training with `torchrun`
-4. **Batch size** 20-32 per GPU (fits 16GB GPU with FP16)
+3. **Use all GPUs** for pre-training with `torchrun`
+4. **Batch size** 20-32 per GPU (fits 24GB GPU with FP16)
 5. **Num workers** 4-8 for data loading
 6. **Prefetch factor** 2-4 for overlapping CPU/GPU work
 7. **Gradient accumulation** 2-4 for larger effective batch size
@@ -419,15 +357,15 @@ python classification/kronos_pretrain.py --data_dir ... --fp16
 # Use specific GPU
 python classification/kronos_pretrain.py --data_dir ... --device cuda:2 --fp16
 
-# Use all 4 GPUs
-torchrun --standalone --nproc_per_node=4 classification/kronos_pretrain.py --data_dir ... --fp16
+# Use all 2 GPUs
+torchrun --standalone --nproc_per_node=2 classification/kronos_pretrain.py --data_dir ... --fp16
 
 # Use specific GPUs only
-CUDA_VISIBLE_DEVICES=1,2,3 torchrun --standalone --nproc_per_node=3 ...
+CUDA_VISIBLE_DEVICES=1 torchrun --standalone --nproc_per_node=3 ...
 
 # Maximum speed (all optimizations)
-torchrun --standalone --nproc_per_node=4 classification/kronos_pretrain.py \
+torchrun --standalone --nproc_per_node=2 classification/kronos_pretrain.py \
     --data_dir ... --fp16 --batch_size 24 --num_workers 8 --prefetch_factor 4
 ```
 
-With these optimizations, you should achieve **3.5-4x speedup** on 4 GPUs compared to single GPU training!
+With these optimizations, you should achieve **2x speedup** on 2 GPUs compared to single GPU training!
