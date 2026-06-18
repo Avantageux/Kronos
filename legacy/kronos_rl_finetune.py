@@ -1,7 +1,24 @@
 """
-Kronos RL Fine-tuning Script
-Fine-tune classification model using Reinforcement Learning (Policy Gradient).
-This is useful for further improving accuracy after supervised training.
+[DEPRECATED] Kronos RL Fine-tuning Script
+
+F8 (code-review): This module is dead code. The PPO/RL fine-tuning
+pipeline was removed from the active training stack (see
+``configs/ppo.yaml`` deletion and the
+``src/training/ppo_trainer.py`` removal in commit 5a1cdf4). The
+``PolicyGradientFinetuner`` class below is retained only for
+archaeological reference; it is NOT imported by any active code path
+and is NOT covered by the test suite.
+
+Do NOT import this module in new code. The active fine-tuning stack
+is SFT (``src/training/sft_trainer.py``) + DPO
+(``src/training/dpo_trainer.py``). If RL fine-tuning is needed again,
+rewrite from scratch against the current ``FoundationModelConfig``
+rather than reviving this file.
+
+Original description:
+    Fine-tune classification model using Reinforcement Learning
+    (Policy Gradient). This is useful for further improving accuracy
+    after supervised training.
 """
 
 import os
