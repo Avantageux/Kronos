@@ -1,7 +1,7 @@
 """
 [DEPRECATED] Kronos RL Fine-tuning Script
 
-F8 (code-review): This module is dead code. The PPO/RL fine-tuning
+This module is dead code. The PPO/RL fine-tuning
 pipeline was removed from the active training stack (see
 ``configs/ppo.yaml`` deletion and the
 ``src/training/ppo_trainer.py`` removal in commit 5a1cdf4). The
