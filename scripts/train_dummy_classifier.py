@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Train a dummy Kronos classification model with random weights.
-Outputs a single sigmoid score [0, 1] per the ML contract (GAP-02).
+Outputs a single sigmoid score [0, 1] per the ML contract.
 """
 
 import sys

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Export dummy classification model to ONNX and verify outputs are in [0, 1].
-GAP-02 contract: single sigmoid score [0.0, 1.0] per input.
+ML contract: single sigmoid score [0.0, 1.0] per input.
 """
 
 import sys
