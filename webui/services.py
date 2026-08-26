@@ -42,7 +42,7 @@ def set_model_state(tokenizer, model, predictor):
     _model_state['predictor'] = predictor
 
 # Available model configurations
-# SEC-6: pinned HF revisions for supply-chain protection
+# Pinned HF revisions for supply-chain protection
 _HF_PINNED_REVISIONS = {
     'NeoQuasar/Kronos-base': '2b55474',
     'NeoQuasar/Kronos-small': '901c26c',

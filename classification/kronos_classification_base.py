@@ -19,7 +19,7 @@ from safetensors.torch import load_file as safe_load_file
 
 logger = logging.getLogger(__name__)
 
-# SEC-6: Pinned HuggingFace model revisions for supply-chain protection.
+# Pinned HuggingFace model revisions for supply-chain protection.
 # Override with KRONOS_HF_REVISION env var (applies to all models).
 _HF_PINNED_REVISIONS = {
     "NeoQuasar/Kronos-base": "2b55474",
@@ -138,7 +138,7 @@ class KronosClassificationModel(nn.Module):
 
         logger.info(f"Loading Kronos tokenizer from {tokenizer_path}...")
         try:
-            # SEC-6: pin revision to guard against supply-chain attacks on HF Hub.
+            # Pin revision to guard against supply-chain attacks on HF Hub.
             # Env var KRONOS_REVISION overrides the pinned default.
             _tok_revision = _get_pinned_revision(tokenizer_path)
             self.tokenizer = KronosTokenizer.from_pretrained(

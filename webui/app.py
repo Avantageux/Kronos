@@ -18,7 +18,7 @@ def create_app():
     """Create and configure the Flask application."""
     app = Flask(__name__)
 
-    # Security: deny-all CORS by default; require explicit KRONOS_ALLOWED_ORIGINS env var (SEC-4)
+    # Security: deny-all CORS by default; require explicit KRONOS_ALLOWED_ORIGINS env var
     if os.environ.get('KRONOS_ALLOWED_ORIGINS'):
         _origins = [o.strip() for o in os.environ['KRONOS_ALLOWED_ORIGINS'].split(',') if o.strip()]
         CORS(app, origins=_origins)

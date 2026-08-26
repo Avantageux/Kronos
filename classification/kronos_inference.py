@@ -421,7 +421,7 @@ def analyze_checkpoint(checkpoint_path: str):
     
     training_state_path = os.path.join(checkpoint_path, 'training_state.bin')
     if os.path.exists(training_state_path):
-        # Verify SHA-256 hash before loading (SEC-2)
+        # Verify SHA-256 hash before loading
         hash_path = training_state_path + '.sha256'
         if os.path.exists(hash_path):
             import hashlib

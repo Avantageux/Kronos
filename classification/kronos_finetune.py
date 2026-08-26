@@ -211,7 +211,7 @@ class KronosTimeSeriesDataset(Dataset):
 
 
         # Chronological split: sort by first timestamp in each sample to
-        # prevent look-ahead bias (SEC-10). No shuffle — financial data must
+        # prevent look-ahead bias. No shuffle — financial data must
         # respect temporal ordering so future data never leaks into training.
 
         def _first_ts(sample):
@@ -515,7 +515,7 @@ class KronosFineTuner:
                 with torch.cuda.amp.autocast():
                     outputs = self.model(**batch, class_weights=self.class_weights)
                     loss = outputs['loss'] / self.gradient_accumulation_steps
-                # STA-2: NaN/Inf loss guard
+                # NaN/Inf loss guard
                 loss_val = loss.item()
                 if not np.isfinite(loss_val):
                     logger.warning(f"Non-finite loss ({loss_val}) at step {step+1}. Skipping batch.")
@@ -525,7 +525,7 @@ class KronosFineTuner:
             else:
                 outputs = self.model(**batch, class_weights=self.class_weights)
                 loss = outputs['loss'] / self.gradient_accumulation_steps
-                # STA-2: NaN/Inf loss guard
+                # NaN/Inf loss guard
                 loss_val = loss.item()
                 if not np.isfinite(loss_val):
                     logger.warning(f"Non-finite loss ({loss_val}) at step {step+1}. Skipping batch.")
@@ -616,7 +616,7 @@ class KronosFineTuner:
             'scheduler_state_dict': self.scheduler.state_dict(),
         }, ts_path)
 
-        # Write SHA-256 hash sidecar for integrity verification (SEC-2)
+        # Write SHA-256 hash sidecar for integrity verification
         sha256 = hashlib.sha256()
         with open(ts_path, 'rb') as f:
             for chunk in iter(lambda: f.read(8192), b''):

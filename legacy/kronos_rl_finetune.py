@@ -325,7 +325,7 @@ class PolicyGradientFinetuner:
                     # Compute policy loss
                     loss = self.compute_policy_loss(logits, labels, rewards) / self.gradient_accumulation_steps
 
-                # STA-2: NaN/Inf loss guard
+                # NaN/Inf loss guard
                 loss_val = loss.item()
                 if not np.isfinite(loss_val):
                     logger.warning(f"Non-finite loss ({loss_val}) at step {step+1}. Skipping batch.")
@@ -342,7 +342,7 @@ class PolicyGradientFinetuner:
 
                 # Compute policy loss
                 loss = self.compute_policy_loss(logits, labels, rewards) / self.gradient_accumulation_steps
-                # STA-2: NaN/Inf loss guard
+                # NaN/Inf loss guard
                 loss_val = loss.item()
                 if not np.isfinite(loss_val):
                     logger.warning(f"Non-finite loss ({loss_val}) at step {step+1}. Skipping batch.")
@@ -450,7 +450,7 @@ class PolicyGradientFinetuner:
             'scheduler_state_dict': self.scheduler.state_dict(),
         }, ts_path)
 
-        # Write SHA-256 hash sidecar for integrity verification (SEC-2)
+        # Write SHA-256 hash sidecar for integrity verification
         sha256 = hashlib.sha256()
         with open(ts_path, 'rb') as f:
             for chunk in iter(lambda: f.read(8192), b''):

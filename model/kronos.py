@@ -404,7 +404,7 @@ def auto_regressive_inference(tokenizer, model, x, x_stamp, y_stamp, max_context
 
         device = x.device
 
-        # MEM-1: Guard against OOM from batch * sample_count expansion
+        # Guard against OOM from batch * sample_count expansion
         if x.is_cuda and sample_count > 1:
             free_mem = torch.cuda.mem_get_info(device)[0]
             param_mem = sum(p.numel() * p.element_size() for p in model.parameters())
