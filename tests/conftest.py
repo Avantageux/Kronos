@@ -168,30 +168,6 @@ def tmp_dir(tmp_path):
 
 
 @pytest.fixture()
-def sample_classification_data(tmp_path):
-    """Create a JSON file mimicking the classification training data format."""
-    data = {"results": []}
-    for i in range(20):
-        n_pts = 60
-        chart_data = {
-            "opens": list(np.random.randn(n_pts) * 2 + 100),
-            "highs": list(np.random.randn(n_pts) * 2 + 102),
-            "lows": list(np.random.randn(n_pts) * 2 + 98),
-            "closes": list(np.random.randn(n_pts) * 2 + 100),
-            "volumes": list(np.abs(np.random.randn(n_pts)) * 1000),
-            "dates": list(range(1700000000000, 1700000000000 + n_pts * 3600000, 3600000)),
-        }
-        data["results"].append({
-            "assigned_label": i % 2,
-            "chart_data": chart_data,
-        })
-    fp = tmp_path / "train_data.json"
-    with open(fp, "w") as f:
-        json.dump(data, f)
-    return str(fp)
-
-
-@pytest.fixture()
 def sample_yaml_config(tmp_path):
     """Create a minimal YAML config for finetune_csv."""
     config = {
