@@ -4,6 +4,7 @@ import os
 import json
 import datetime
 import logging
+from pathlib import Path
 
 import pandas as pd
 import numpy as np
@@ -107,7 +108,10 @@ def load_data_file(file_path):
     """Load data file with path traversal protection."""
     try:
         resolved = Path(file_path).resolve()
-        if not str(resolved).startswith(str(DATA_DIR)):
+        # Containment must be path-component-wise, not a string prefix: a
+        # sibling like DATA_DIR + "-evil" passes startswith() but lies
+        # outside the jail. is_relative_to() rejects it.
+        if not resolved.is_relative_to(DATA_DIR):
             logger.warning("Blocked path traversal attempt")
             return None, "Access denied"
         if not resolved.exists():

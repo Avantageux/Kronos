@@ -85,6 +85,26 @@ class TestPathTraversal:
         assert df is None
         assert err == "Access denied"
 
+    def test_sibling_prefix_directory_denied(self, api_client, tmp_path, monkeypatch):
+        """A sibling whose name merely string-prefixes DATA_DIR must be denied.
+
+        Regression pin for the old ``str(resolved).startswith(str(DATA_DIR))``
+        guard: ``<data>-evil/evil.csv`` shares the string prefix but is a
+        different directory. ``Path.is_relative_to`` rejects it.
+        """
+        import webui.services as services
+        _, app_module, _ = api_client
+        jail = tmp_path / "data"
+        jail.mkdir()
+        sibling = tmp_path / "data-evil"
+        sibling.mkdir()
+        evil = sibling / "evil.csv"
+        evil.write_text("open,high,low,close\n1.0,2.0,0.5,1.5\n")
+        monkeypatch.setattr(services, "DATA_DIR", jail)
+        df, err = app_module.load_data_file(str(evil))
+        assert df is None
+        assert err == "Access denied"
+
     def test_valid_but_nonexistent_file(self, api_client):
         _, app_module, _ = api_client
         data_dir = app_module.DATA_DIR
