@@ -333,3 +333,39 @@ class TestInputValidation:
             assert "Unsupported" in err
         finally:
             bad_file.unlink(missing_ok=True)
+
+
+# ===================================================================
+# 5. Dev-server bind defaults (no debug on 0.0.0.0)
+# ===================================================================
+
+class TestServerDefaults:
+    """The __main__ server must not default to debug on 0.0.0.0.
+
+    The Werkzeug debugger is an RCE vector when reachable; debug is opt-in
+    via KRONOS_WEBUI_DEBUG=1 and the default bind is loopback. Asserted via
+    get_server_config() (imported from app.py) — no server run needed.
+    """
+
+    def test_default_is_non_debug_loopback(self, api_client, monkeypatch):
+        _, app_module, _ = api_client
+        monkeypatch.delenv("KRONOS_WEBUI_DEBUG", raising=False)
+        monkeypatch.delenv("KRONOS_WEBUI_HOST", raising=False)
+        debug, host = app_module.get_server_config()
+        assert debug is False
+        assert host == "127.0.0.1"
+
+    def test_debug_requires_explicit_opt_in(self, api_client, monkeypatch):
+        _, app_module, _ = api_client
+        monkeypatch.setenv("KRONOS_WEBUI_DEBUG", "1")
+        debug, _ = app_module.get_server_config()
+        assert debug is True
+
+    def test_debug_env_value_must_be_exactly_one(self, api_client, monkeypatch):
+        """Truthy-looking values (e.g. 'true') must NOT enable debug."""
+        _, app_module, _ = api_client
+        monkeypatch.setenv("KRONOS_WEBUI_DEBUG", "true")
+        monkeypatch.delenv("KRONOS_WEBUI_HOST", raising=False)
+        debug, host = app_module.get_server_config()
+        assert debug is False
+        assert host == "127.0.0.1"

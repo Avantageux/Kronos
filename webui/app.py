@@ -44,6 +44,19 @@ from .services import (  # noqa: E402, F401
 )
 from .config import API_KEY  # noqa: E402, F401
 
+
+def get_server_config() -> tuple[bool, str]:
+    """Return (debug, host) for the dev server.
+
+    Security: the Werkzeug debugger is an RCE vector when reachable, so debug
+    mode is opt-in via KRONOS_WEBUI_DEBUG=1 only. The default bind is
+    loopback; override with KRONOS_WEBUI_HOST when LAN access is deliberate.
+    """
+    debug = os.environ.get('KRONOS_WEBUI_DEBUG', '') == '1'
+    host = os.environ.get('KRONOS_WEBUI_HOST', '127.0.0.1')
+    return debug, host
+
+
 if __name__ == '__main__':
     print("Starting Kronos Web UI...")
     from .services import MODEL_AVAILABLE
@@ -53,4 +66,5 @@ if __name__ == '__main__':
     else:
         print("Tip: Will use simulated data for demonstration")
 
-    app.run(debug=True, host='0.0.0.0', port=7070)
+    _debug, _host = get_server_config()
+    app.run(debug=_debug, host=_host, port=7070)
