@@ -107,7 +107,10 @@ class TestPathTraversal:
 
     def test_valid_but_nonexistent_file(self, api_client):
         _, app_module, _ = api_client
-        data_dir = app_module.DATA_DIR
+        # DATA_DIR moved to webui/config.py (app.py re-exports only the
+        # services + API_KEY names).
+        import webui.config as webui_config
+        data_dir = webui_config.DATA_DIR
         safe_path = str(data_dir / "nonexistent_safe_file.csv")
         df, err = app_module.load_data_file(safe_path)
         assert df is None
@@ -158,9 +161,12 @@ class TestApiKeyAuth:
 
     def test_compare_digest_used(self, api_client):
         """Verify secrets.compare_digest is used for timing-attack resistance."""
-        _, app_module, _ = api_client
+        _, _, _ = api_client
         import inspect
-        source = inspect.getsource(app_module.require_api_key)
+        # require_api_key moved to webui/routes.py (app.py no longer
+        # defines it); the compare_digest property itself still holds.
+        import webui.routes as routes_module
+        source = inspect.getsource(routes_module.require_api_key)
         assert "compare_digest" in source
 
     def test_predict_endpoint_requires_auth(self, api_client):
@@ -211,11 +217,17 @@ class TestErrorSanitization:
     def test_load_data_error_generic(self, api_client):
         """Force an internal error and check the 500 response is generic."""
         client, app_module, key = api_client
-        # Patch load_data_file to raise, which triggers the outer except → generic 500
-        with patch("webui.app.load_data_file", side_effect=RuntimeError("secret-internal-boom")):
+        # Patch the name the ROUTE binds (webui.routes.load_data_file —
+        # webui.app's re-export is not on the handler's call path) and use
+        # a DATA_DIR-relative path so the request genuinely reaches the
+        # (patched, raising) loader instead of being 400-rejected by the
+        # traversal guard first.
+        import webui.config as webui_config
+        in_dir_path = str(webui_config.DATA_DIR / "somefile.csv")
+        with patch("webui.routes.load_data_file", side_effect=RuntimeError("secret-internal-boom")):
             resp = client.post(
                 "/api/load-data",
-                json={"file_path": "/some/path"},
+                json={"file_path": in_dir_path},
                 headers={"X-API-Key": key},
             )
         assert resp.status_code == 500
@@ -227,11 +239,14 @@ class TestErrorSanitization:
 
     def test_predict_error_no_internal_details(self, api_client):
         client, app_module, key = api_client
-        # Patch load_data_file to raise deep inside /api/predict handler
-        with patch("webui.app.load_data_file", side_effect=RuntimeError("secret-details")):
+        # Same repoint as above: patch the route's binding + an in-DATA_DIR
+        # path so the error path (not the 400 traversal guard) is exercised.
+        import webui.config as webui_config
+        in_dir_path = str(webui_config.DATA_DIR / "somefile.csv")
+        with patch("webui.routes.load_data_file", side_effect=RuntimeError("secret-details")):
             resp = client.post(
                 "/api/predict",
-                json={"file_path": "/some/path"},
+                json={"file_path": in_dir_path},
                 headers={"X-API-Key": key},
             )
         assert resp.status_code == 500
@@ -343,8 +358,10 @@ class TestInputValidation:
     def test_unsupported_file_format(self, api_client, tmp_path):
         """load_data_file should reject non-CSV/feather files inside DATA_DIR."""
         _, app_module, _ = api_client
+        # DATA_DIR moved to webui/config.py.
+        import webui.config as webui_config
         # Create a .txt file inside DATA_DIR
-        bad_file = app_module.DATA_DIR / "test_unsupported.txt"
+        bad_file = webui_config.DATA_DIR / "test_unsupported.txt"
         bad_file.parent.mkdir(parents=True, exist_ok=True)
         bad_file.write_text("hello")
         try:
