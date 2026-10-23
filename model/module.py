@@ -337,16 +337,29 @@ class MultiHeadAttentionWithRoPE(nn.Module):
         q, k = self.rotary(q, k)
 
         if key_padding_mask is not None:
-            attn_mask = key_padding_mask.unsqueeze(1).unsqueeze(2)  # [batch, 1, 1, seq_len]
-            attn_mask = attn_mask.expand(-1, self.n_heads, seq_len, -1)  # [batch, n_heads, q_len, k_len]
+            # SDPA bool-mask convention throughout this repo: True = attend,
+            # False = padded. Expand the per-key mask to [b, h, q, k] and
+            # fold in the causal lower-triangle, then pass is_causal=False:
+            # current torch REJECTS an explicit attn_mask combined with
+            # is_causal=True ("Explicit attn_mask should not be set when
+            # is_causal=True" — RuntimeError on the padding-mask forward
+            # path under torch 2.14).
+            pad = key_padding_mask.unsqueeze(1).unsqueeze(2)  # [b, 1, 1, k]
+            pad = pad.expand(-1, self.n_heads, seq_len, -1)  # [b, h, q, k]
+            causal = torch.ones(
+                seq_len, seq_len, dtype=torch.bool, device=x.device
+            ).tril()
+            attn_mask = pad & causal
+            is_causal = False
         else:
             attn_mask = None
+            is_causal = True
 
         attn_output = F.scaled_dot_product_attention(
             q, k, v,
             attn_mask=attn_mask,
             dropout_p=self.attn_dropout_p if self.training else 0.0,
-            is_causal=True
+            is_causal=is_causal
         )
 
         attn_output = attn_output.transpose(1, 2).contiguous().view(batch_size, seq_len, self.d_model)
@@ -379,12 +392,24 @@ class MultiHeadCrossAttentionWithRoPE(nn.Module):
         q, k = self.rotary(q, k)
 
         if key_padding_mask is not None:
-            attn_mask = key_padding_mask.unsqueeze(1).unsqueeze(2)
-            attn_mask = attn_mask.expand(-1, self.n_heads, q_len, -1)
+            # Same torch-compat treatment as the self-attention path: an
+            # explicit attn_mask cannot be combined with is_causal=True on
+            # current torch. During training (where is_causal used to be
+            # set) fold the causal lower-triangle into the padding mask;
+            # at eval is_causal was already False.
+            pad = key_padding_mask.unsqueeze(1).unsqueeze(2)  # [b, 1, 1, k]
+            pad = pad.expand(-1, self.n_heads, q_len, -1)  # [b, h, q, k]
+            if self.training:
+                causal = torch.ones(
+                    q_len, seq_len, dtype=torch.bool, device=query.device
+                ).tril()
+                attn_mask = pad & causal
+            else:
+                attn_mask = pad
         else:
             attn_mask = None
 
-        is_causal_flag = self.training
+        is_causal_flag = self.training and attn_mask is None
 
         attn_output = F.scaled_dot_product_attention(
             q, k, v,

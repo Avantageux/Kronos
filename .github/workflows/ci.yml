@@ -1,0 +1,69 @@
+# Minimal pytest CI for the Kronos repository.
+#
+# Before this file (2026-10-23) this repo had NO workflows at all: its 7
+# test files (tests/*.py + webui/test_security.py) executed nowhere on
+# their own repo (g9-ci-audit G10, "NO-CI NOT-covered"). The suite is
+# designed to run fully offline on CPU — tests/conftest.py mocks all
+# HuggingFace Hub downloads and forces torch.cuda.is_available() to
+# False — so a single ubuntu-latest job covers it. No services, no
+# docker, no GPU, no secrets.
+#
+# Dependency shape (mirrors the verified local battery):
+#   * ``requirements.txt`` is the repo's declared dependency set.
+#   * The test additions below are imported by the suite / the code it
+#     exercises but are NOT declared in requirements.txt:
+#       pytest, pyyaml            -- runner + tests/test_finetune_csv.py
+#       flask, flask-cors, plotly -- webui/app.py (webui/test_security.py)
+#       transformers              -- classification/* (classification tests)
+#       scikit-learn              -- classification/kronos_finetune.py
+#
+# Cross-repo note (consumers): Spectre-Embed-114M-Base's CI builds the
+# kronos-v2-onnx / kronos-phase3-sft CI artifacts consumed by
+# market-ontology-system's cross-repo e2e lane; THIS workflow runs the
+# Kronos *code* tests and produces no artifacts.
+
+name: CI
+
+permissions:
+  contents: read
+
+"on":
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Pytest (CPU, offline)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # CPU-only policy: the suite mocks GPU availability, this keeps any
+      # accidental CUDA path selection impossible.
+      CUDA_VISIBLE_DEVICES: ""
+      # Determinism: every download the suite could want is mocked by
+      # tests/conftest.py; refuse accidental network fetches.
+      HF_HUB_OFFLINE: "1"
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/setup-python@13ae5bb136fac2878aff31522b9efb785519f984 # v4.3.0
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pyyaml flask flask-cors plotly transformers scikit-learn
+
+      - name: Run test suite
+        run: pytest tests webui/test_security.py -v --tb=short
